@@ -1,0 +1,26 @@
+name: License Guardian
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  enforce-license:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Verify LICENSE file
+        run: |
+          if [ ! -f LICENSE ]; then
+            echo "LICENSE file is missing!"
+            exit 1
+          elif ! cmp -s LICENSE .github/original_LICENSE; then
+            echo "LICENSE file was modified!"
+            exit 1
+          else
+            echo "✅ LICENSE is intact."
+          fi
