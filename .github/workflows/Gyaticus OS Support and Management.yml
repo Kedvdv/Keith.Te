@@ -1,4 +1,4 @@
-name: License Guardian
+name: Gyaticus OS Support and Management System
 
 on:
   push:
@@ -14,13 +14,61 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Verify LICENSE file
+        id: check_license
         run: |
           if [ ! -f LICENSE ]; then
-            echo "LICENSE file is missing!"
+            echo "missing=true" >> $GITHUB_ENV
             exit 1
           elif ! cmp -s LICENSE .github/original_LICENSE; then
-            echo "LICENSE file was modified!"
+            echo "modified=true" >> $GITHUB_ENV
             exit 1
           else
             echo "✅ LICENSE is intact."
           fi
+
+      - name: Flag violation
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const user = context.actor;
+            const issue_number = context.issue.number;
+
+          
+            let count = parseInt(process.env.VIOLATION_COUNT || "0");
+            count++;
+            core.exportVariable("VIOLATION_COUNT", count);
+
+            let message = "";
+            if (count === 1) {
+              message = `⚠️ Hi @${user}, your PR was flagged for modifying/removing the LICENSE file. Please respect the CC-BY-NC-ND license.`;
+            } else if (count === 2) {
+              message = `🚩 Hi @${user}, this is your second flag for license issues. Please correct it to avoid closure.`;
+            } else {
+              message = `❌ Hi @${user}, your PR has been automatically closed by *Gyaticus OS Support and Management* due to repeated license violations.`;
+            }
+
+          
+            await github.rest.issues.createComment({
+              issue_number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            });
+
+          
+            if (count >= 3) {
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: issue_number,
+                state: "closed"
+              });
+
+              await github.rest.issues.addLabels({
+                issue_number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: ["license-violation"]
+              });
+            }
